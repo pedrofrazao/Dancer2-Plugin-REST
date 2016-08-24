@@ -15,8 +15,8 @@ my $content_types = {
     yml  => 'text/x-yaml',
 };
 
-register prepare_serializer_for_format => sub {
-    my $dsl = shift;
+sub prepare_serializer_for_format :PluginKeyword {
+    my $self = shift;
 
     my $conf        = plugin_setting;
     my $serializers = (
@@ -28,35 +28,36 @@ register prepare_serializer_for_format => sub {
         }
     );
 
-    $dsl->hook(
-        'before' => sub {
-            my $format = $dsl->params->{'format'};
-            $format  ||= $dsl->captures->{'format'} if $dsl->captures;
+    $self->app->add_hook( Dancer2::Core::Hook->new(
+        name => 'before',
+        code => sub {
+            my $format = $self->app->request->params->{'format'};
+            $format  ||= $self->app->request->captures->{'format'} if $self->app->request->captures;
 
             unless  ( defined $format ) { 
-                delete $dsl->app->response->{serializer};
+                delete $self->app->response->{serializer};
                 return;
             }
 
             my $serializer = $serializers->{$format};
             
             unless( $serializer ) {
-                return $dsl->send_error("unsupported format requested: " . $format, 404);
+                return $self->app->send_error("unsupported format requested: " . $format, 404);
             }
 
-            $dsl->set(serializer => $serializer);
-            $dsl->app->set_response( Dancer2::Core::Response->new(
-                %{ $dsl->app->response },
-                serializer => $dsl->set('serializer'),
+            $self->app->setting(serializer => $serializer);
+            $self->app->set_response( Dancer2::Core::Response->new(
+                %{ $self->app->response },
+                serializer => $self->app->setting('serializer'),
             ) );
 
-            my $ct = $content_types->{$format} || $dsl->setting('content_type');
-            $dsl->content_type($ct);
+            my $ct = $content_types->{$format} || $self->app->setting('content_type');
+            $self->app->response->content_type($ct);
         }
-    );
+    ) );
 };
 
-register resource => sub {
+sub resource :PluginKeyword {
     my $dsl = shift;
 
     my ($resource, %triggers) = @_;
@@ -82,12 +83,12 @@ register resource => sub {
     }
 };
 
-register send_entity => sub {
+sub send_entity :PluginKeyword {
     my ($dsl, $entity, $http_code) = @_;
 
     $http_code ||= 200;
 
-    $dsl->status($http_code);
+    $dsl->app->response->status($http_code);
     $entity;
 };
 
@@ -158,12 +159,13 @@ my %http_codes = (
     509 => 'Bandwidth Limit Exceeded',
 );
 
-for my $code (keys %http_codes) {
-    my $helper_name = lc($http_codes{$code});
+plugin_keywords map {
+    my $code = $_;
+    my $helper_name = lc($http_codes{$_});
     $helper_name =~ s/[^\w]+/_/gms;
     $helper_name = "status_${helper_name}";
 
-    register $helper_name => sub {
+    $helper_name => sub {
         my $dsl = shift;
 
         $dsl->send_entity(
@@ -171,9 +173,7 @@ for my $code (keys %http_codes) {
             $code
         );
     };
-}
-
-register_plugin for_versions => [2];
+} keys %http_codes;
 
 1;
 
