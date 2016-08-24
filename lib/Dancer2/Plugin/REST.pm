@@ -7,13 +7,24 @@ use warnings;
 use Carp 'croak';
 
 use Dancer2::Plugin;
-use Class::Load qw/ try_load_class /;
 
 # [todo] - add XML support
 my $content_types = {
     json => 'application/json',
     yml  => 'text/x-yaml',
 };
+
+has '+app' => (
+    handles => [qw/
+        add_hook
+        add_route
+        setting
+        response
+        request
+        send_error
+        set_response
+    /],
+);
 
 sub prepare_serializer_for_format :PluginKeyword {
     my $self = shift;
@@ -28,31 +39,31 @@ sub prepare_serializer_for_format :PluginKeyword {
         }
     );
 
-    $self->app->add_hook( Dancer2::Core::Hook->new(
+    $self->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
         code => sub {
-            my $format = $self->app->request->params->{'format'};
-            $format  ||= $self->app->request->captures->{'format'} if $self->app->request->captures;
+            my $format = $self->request->params->{'format'};
+            $format  ||= $self->request->captures->{'format'} if $self->request->captures;
 
             unless  ( defined $format ) { 
-                delete $self->app->response->{serializer};
+                delete $self->response->{serializer};
                 return;
             }
 
             my $serializer = $serializers->{$format};
             
             unless( $serializer ) {
-                return $self->app->send_error("unsupported format requested: " . $format, 404);
+                return $self->send_error("unsupported format requested: " . $format, 404);
             }
 
-            $self->app->setting(serializer => $serializer);
-            $self->app->set_response( Dancer2::Core::Response->new(
-                %{ $self->app->response },
-                serializer => $self->app->setting('serializer'),
+            $self->setting(serializer => $serializer);
+            $self->set_response( Dancer2::Core::Response->new(
+                %{ $self->response },
+                serializer => $self->setting('serializer'),
             ) );
 
-            my $ct = $content_types->{$format} || $self->app->setting('content_type');
-            $self->app->response->content_type($ct);
+            my $ct = $content_types->{$format} || $self->setting('content_type');
+            $self->response->content_type($ct);
         }
     ) );
 };
@@ -74,7 +85,7 @@ sub resource :PluginKeyword {
              and grep { $triggers{$_} } keys %actions;
 
     while( my( $action, $code ) = each %triggers ) {
-            $dsl->app->add_route( 
+            $dsl->add_route( 
                 method => $actions{$action},
                 regexp => $_,
                 code   => $code,
@@ -88,7 +99,7 @@ sub send_entity :PluginKeyword {
 
     $http_code ||= 200;
 
-    $dsl->app->response->status($http_code);
+    $dsl->response->status($http_code);
     $entity;
 };
 
