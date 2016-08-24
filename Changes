@@ -2,6 +2,7 @@ Revision history for Dancer2-Plugin-REST
 
 {{$NEXT}}
   [ API CHANGES ]
+  - Refactor code to use the new Dancer2::Plugin system.
 
   [ BUG FIXES ]
 
