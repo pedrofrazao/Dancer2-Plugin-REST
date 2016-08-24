@@ -4,7 +4,7 @@ package Dancer2::Plugin::REST;
 use strict;
 use warnings;
 
-use Carp 'croak';
+use Carp;
 
 use Dancer2::Plugin;
 
@@ -29,7 +29,7 @@ has '+app' => (
 sub prepare_serializer_for_format :PluginKeyword {
     my $self = shift;
 
-    my $conf        = plugin_setting;
+    my $conf        = $self->config;
     my $serializers = (
         ($conf && exists $conf->{serializers})
         ? $conf->{serializers}
@@ -45,39 +45,33 @@ sub prepare_serializer_for_format :PluginKeyword {
             my $format = $self->request->params->{'format'};
             $format  ||= $self->request->captures->{'format'} if $self->request->captures;
 
-            unless  ( defined $format ) { 
-                delete $self->response->{serializer};
-                return;
-            }
+            return delete $self->response->{serializer}
+                unless defined $format;
 
-            my $serializer = $serializers->{$format};
-            
-            unless( $serializer ) {
-                return $self->send_error("unsupported format requested: " . $format, 404);
-            }
+            my $serializer = $serializers->{$format}
+                or return $self->send_error("unsupported format requested: " . $format, 404);
 
             $self->setting(serializer => $serializer);
+
             $self->set_response( Dancer2::Core::Response->new(
                 %{ $self->response },
                 serializer => $self->setting('serializer'),
             ) );
 
-            my $ct = $content_types->{$format} || $self->setting('content_type');
-            $self->response->content_type($ct);
+            $self->response->content_type(
+                $content_types->{$format} || $self->setting('content_type')
+            );
         }
     ) );
 };
 
 sub resource :PluginKeyword {
-    my $dsl = shift;
-
-    my ($resource, %triggers) = @_;
+    my ($self, $resource, %triggers) = @_;
 
     my %actions = (
-        get    => 'get',
         update => 'put',
         create => 'post',
-        delete => 'delete',
+        map { $_ => $_ } qw/ get delete /
     );
 
     croak "resource should be given with triggers"
@@ -85,7 +79,7 @@ sub resource :PluginKeyword {
              and grep { $triggers{$_} } keys %actions;
 
     while( my( $action, $code ) = each %triggers ) {
-            $dsl->add_route( 
+            $self->add_route( 
                 method => $actions{$action},
                 regexp => $_,
                 code   => $code,
@@ -95,14 +89,13 @@ sub resource :PluginKeyword {
 };
 
 sub send_entity :PluginKeyword {
-    my ($dsl, $entity, $http_code) = @_;
+    my ($self, $entity, $http_code) = @_;
 
-    $http_code ||= 200;
-
-    $dsl->response->status($http_code);
+    $self->response->status($http_code || 200);
     $entity;
 };
 
+# TODO refactor that if my patch goes for Dancer2::Core::HTTP
 my %http_codes = (
 
     # 1xx
@@ -177,10 +170,8 @@ plugin_keywords map {
     $helper_name = "status_${helper_name}";
 
     $helper_name => sub {
-        my $dsl = shift;
-
-        $dsl->send_entity(
-            ( $code >= 400 ? {error => $_[0]} : $_[0] ),
+        $_[0]->send_entity(
+            ( $code >= 400 ? {error => $_[1]} : $_[1] ),
             $code
         );
     };
