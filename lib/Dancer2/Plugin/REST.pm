@@ -1,12 +1,17 @@
 package Dancer2::Plugin::REST;
 # ABSTRACT: A plugin for writing RESTful apps with Dancer2
 
+use 5.12.0;  # for the sub attributes
+
 use strict;
 use warnings;
 
 use Carp;
 
 use Dancer2::Plugin;
+
+use Dancer2::Core::HTTP 0.203000;
+use List::Util qw/ pairmap pairgrep /;
 
 # [todo] - add XML support
 my $content_types = {
@@ -95,87 +100,28 @@ sub send_entity :PluginKeyword {
     $entity;
 };
 
-# TODO refactor that if my patch goes for Dancer2::Core::HTTP
-my %http_codes = (
+sub _status_helpers {
+    return 
+                # see https://github.com/PerlDancer/Dancer2/pull/1235
+           pairmap { ( $a =~ /\d.*_/ ? (split '_', $a, 2 )[1] : $a ), $b  }
+           pairmap  { $a =~ /^\d+$/ ? ( $a => $a ) : ( $a => $b ) }
+           pairgrep { $a !~ /[A-Z]/ } 
+                    Dancer2::Core::HTTP->all_mappings;
+}
 
-    # 1xx
-    100 => 'Continue',
-    101 => 'Switching Protocols',
-    102 => 'Processing',
+plugin_keywords pairmap {
+    { # inner scope because of the pairmap closure bug <:-P
+        my( $helper_name, $code ) = ( $a, $b );
+        $helper_name = "status_${helper_name}";
 
-    # 2xx
-    200 => 'OK',
-    201 => 'Created',
-    202 => 'Accepted',
-    203 => 'Non-Authoritative Information',
-    204 => 'No Content',
-    205 => 'Reset Content',
-    206 => 'Partial Content',
-    207 => 'Multi-Status',
-    210 => 'Content Different',
-
-    # 3xx
-    300 => 'Multiple Choices',
-    301 => 'Moved Permanently',
-    302 => 'Found',
-    303 => 'See Other',
-    304 => 'Not Modified',
-    305 => 'Use Proxy',
-    307 => 'Temporary Redirect',
-    310 => 'Too many Redirect',
-
-    # 4xx
-    400 => 'Bad Request',
-    401 => 'Unauthorized',
-    402 => 'Payment Required',
-    403 => 'Forbidden',
-    404 => 'Not Found',
-    405 => 'Method Not Allowed',
-    406 => 'Not Acceptable',
-    407 => 'Proxy Authentication Required',
-    408 => 'Request Time-out',
-    409 => 'Conflict',
-    410 => 'Gone',
-    411 => 'Length Required',
-    412 => 'Precondition Failed',
-    413 => 'Request Entity Too Large',
-    414 => 'Request-URI Too Long',
-    415 => 'Unsupported Media Type',
-    416 => 'Requested range unsatisfiable',
-    417 => 'Expectation failed',
-    418 => 'Teapot',
-    422 => 'Unprocessable entity',
-    423 => 'Locked',
-    424 => 'Method failure',
-    425 => 'Unordered Collection',
-    426 => 'Upgrade Required',
-    449 => 'Retry With',
-    450 => 'Parental Controls',
-
-    # 5xx
-    500 => 'Internal Server Error',
-    501 => 'Not Implemented',
-    502 => 'Bad Gateway',
-    503 => 'Service Unavailable',
-    504 => 'Gateway Time-out',
-    505 => 'HTTP Version not supported',
-    507 => 'Insufficient storage',
-    509 => 'Bandwidth Limit Exceeded',
-);
-
-plugin_keywords map {
-    my $code = $_;
-    my $helper_name = lc($http_codes{$_});
-    $helper_name =~ s/[^\w]+/_/gms;
-    $helper_name = "status_${helper_name}";
-
-    $helper_name => sub {
-        $_[0]->send_entity(
-            ( $code >= 400 ? {error => $_[1]} : $_[1] ),
-            $code
-        );
-    };
-} keys %http_codes;
+        $helper_name => sub {
+            $_[0]->send_entity(
+                ( ( $code >= 400 && ! ref $_[1] ) ? {error => $_[1]} : $_[1] ),
+                $code
+            );
+        };
+    }
+} _status_helpers();
 
 1;
 
@@ -265,37 +211,105 @@ This keyword lets you declare a resource your application will handle.
 
 =head2 helpers
 
-Some helpers are available. This helper will set an appropriate HTTP status for you.
+Helpers are available for all HTTP codes as recognized by L<Dancer2::Core::HTTP>:
 
-=head3 status_ok
+    status_100    status_continue
+    status_101    status_switching_protocols
+    status_102    status_processing
+
+    status_200    status_ok
+    status_201    status_created
+    status_202    status_accepted
+    status_203    status_non_authoritative_information
+    status_204    status_no_content
+    status_205    status_reset_content
+    status_206    status_partial_content
+    status_207    status_multi_status
+    status_208    status_already_reported
+
+    status_301    status_moved_permanently
+    status_302    status_found
+    status_303    status_see_other
+    status_304    status_not_modified
+    status_305    status_use_proxy
+    status_306    status_switch_proxy
+    status_307    status_temporary_redirect
+
+    status_400    status_bad_request
+    status_401    status_unauthorized
+    status_402    status_payment_required
+    status_403    status_forbidden
+    status_404    status_not_found
+    status_405    status_method_not_allowed
+    status_406    status_not_acceptable
+    status_407    status_proxy_authentication_required
+    status_408    status_request_timeout
+    status_409    status_conflict
+    status_410    status_gone
+    status_411    status_length_required
+    status_412    status_precondition_failed
+    status_413    status_request_entity_too_large
+    status_414    status_request_uri_too_long
+    status_415    status_unsupported_media_type
+    status_416    status_requested_range_not_satisfiable
+    status_417    status_expectation_failed
+    status_418    status_i_m_a_teapot
+    status_420    status_enhance_your_calm
+    status_422    status_unprocessable_entity
+    status_423    status_locked
+    status_424    status_failed_dependency
+    status_425    status_unordered_collection
+    status_426    status_upgrade_required
+    status_428    status_precondition_required
+    status_429    status_too_many_requests
+    status_431    status_request_header_fields_too_large
+    status_444    status_no_response
+    status_449    status_retry_with
+    status_450    status_blocked_by_windows_parental_controls
+    status_451    status_redirect
+    status_494    status_request_header_too_large
+    status_495    status_cert_error
+    status_496    status_no_cert
+    status_497    status_http_to_https
+    status_499    status_client_closed_request
+
+    status_500    status_internal_server_error status_500    status_error
+    status_501    status_not_implemented
+    status_502    status_bad_gateway
+    status_503    status_service_unavailable
+    status_504    status_gateway_timeout
+    status_505    status_http_version_not_supported
+    status_506    status_variant_also_negotiates
+    status_507    status_insufficient_storage
+    status_508    status_loop_detected
+    status_509    status_bandwidth_limit_exceeded
+    status_510    status_not_extended
+    status_511    status_network_authentication_required
+    status_598    status_network_read_timeout_error
+    status_599    status_network_connect_timeout_error
+
+All 1xx, 2xx and 3xx status helpers will set the response status to the right value
+and serves its argument as the response, serialized.
 
     status_ok({users => {...}});
+    # set status to 200, serves the serialized format of { users => {... } }
 
-Set the HTTP status to 200
-
-=head3 status_created
+    status_200({users => {...}});
+    # ditto
 
     status_created({users => {...}});
+    # set status to 201, serves the serialized format of { users => {... } }
 
-Set the HTTP status to 201
+For error statuses ( 4xx and 5xx ), there is an additional dash of
+syntaxic sugar: if the argument is a simple string, it'll
+be converted to C<{ error => $error }>.
 
-=head3 status_accepted
+    status_not_found({ error => "file $name not found" } );
+    # send 404 with serialization of { error => "file blah not found" }
 
-    status_accepted({users => {...}});
+    status_not_found("file $name not found");
+    # ditto
 
-Set the HTTP status to 202
-
-=head3 status_bad_request
-
-    status_bad_request("user foo can't be found");
-
-Set the HTTP status to 400. This function as for argument a scalar that will be used under the key B<error>.
-
-=head3 status_not_found
-
-    status_not_found("users doesn't exists");
-
-Set the HTTP status to 404. This function as for argument a scalar that will be used under the key B<error>.
 
 =head1 LICENCE
 
