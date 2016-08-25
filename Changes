@@ -1,9 +1,6 @@
 Revision history for Dancer2-Plugin-REST
 
 {{$NEXT}}
-  - use the HTTP codes from Dancer2::Core::HTTP
-  - add numerical status_XXX helpers.
-
   [ API CHANGES ]
 
   [ BUG FIXES ]
@@ -15,6 +12,13 @@ Revision history for Dancer2-Plugin-REST
   [ NEW FEATURES ]
 
   [ STATISTICS ]
+
+1.01 2016-08-25
+  - use the HTTP codes from Dancer2::Core::HTTP
+  - add numerical status_XXX helpers.
+
+  [ STATISTICS ]
+    - code churn: 7 files changed, 243 insertions(+), 128 deletions(-)
 
 1.00 2016-08-24
   [ API CHANGES ]
