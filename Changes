@@ -1,6 +1,9 @@
 Revision history for Dancer2-Plugin-REST
 
 {{$NEXT}}
+  - use the HTTP codes from Dancer2::Core::HTTP
+  - add numerical status_XXX helpers.
+
   [ API CHANGES ]
 
   [ BUG FIXES ]

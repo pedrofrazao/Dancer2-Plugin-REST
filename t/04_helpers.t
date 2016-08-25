@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use Test::More import => ['!pass'], tests => 16;
+use Test::More import => ['!pass'], tests => 17;
 use Plack::Test;
 use HTTP::Request::Common qw(GET POST PUT DELETE);
 
@@ -18,6 +18,9 @@ use JSON;
       'create'    => \&on_create_user,
       'delete'    => \&on_delete_user,
       'update'    => \&on_update_user;
+
+    get '/teapot1' => sub { status_i_m_a_teapot };
+    get '/teapot2' => sub { status_418          };
 
     my $users   = {};
     my $last_id = 0;
@@ -131,4 +134,11 @@ test_psgi $app, sub {
         "id is correctly increased"
     );
     is( $r->code, 201, 'HTTP code is 201' );
+
+    subtest 'teapot status helpers' => sub {
+        for ( map { '/teapot'.$_ } 1..2 ) {
+            $r = $cb->( GET $_ );
+            is( $r->code, 418, $_ );
+        }
+    };
 }
