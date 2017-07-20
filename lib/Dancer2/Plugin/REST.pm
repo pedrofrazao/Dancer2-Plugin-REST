@@ -125,6 +125,31 @@ plugin_keywords pairmap {
 
 1;
 
+package 
+    Dancer2::Serializer::Mutable::REST;
+
+use Moo;
+
+extends 'Dancer2::Serializer::Mutable';
+
+
+around _get_content_type => sub {
+    my( $orig, $self, $entity ) = @_;
+
+    $self->has_request or return;
+
+    my $ct = $self->request->header( 'content_type' );
+
+    if( $ct eq 'text/html' or $ct eq '' ) {
+        $self->set_content_type( 'text/html' );
+        return;
+    }
+
+    $orig->($self,$entity);
+};
+
+1;
+
 __END__
 
 =pod
