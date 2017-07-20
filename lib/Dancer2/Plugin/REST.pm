@@ -44,8 +44,6 @@ sub prepare_serializer_for_format :PluginKeyword {
     $self->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
         code => sub {
-            my $response = shift;
-
             my $format = $self->request->params->{'format'}
                          || eval { $self->request->captures->{'format'} };
 
