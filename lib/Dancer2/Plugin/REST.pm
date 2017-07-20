@@ -130,7 +130,7 @@ __END__
 =pod
 
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
     package MyWebService;
 
@@ -273,7 +273,7 @@ Helpers are available for all HTTP codes as recognized by L<Dancer2::Core::HTTP>
     status_497    status_http_to_https
     status_499    status_client_closed_request
 
-    status_500    status_internal_server_error status_500    status_error
+    status_500    status_error, status_internal_server_error
     status_501    status_not_implemented
     status_502    status_bad_gateway
     status_503    status_service_unavailable
