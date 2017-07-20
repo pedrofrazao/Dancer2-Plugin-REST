@@ -31,10 +31,14 @@ has '+app' => (
     /],
 );
 
-sub prepare_serializer_for_format :PluginKeyword {
+sub prepare_serializer_for_format :PluginKeyword { }
+
+sub BUILD {
     my $self = shift;
 
-    my $conf        = $self->config;
+    my $conf = $self->app->config;
+    $conf->{serializer} ||= 'Mutable::REST';
+
     my $serializers = (
         ($conf && exists $conf->{serializers})
         ? $conf->{serializers}
@@ -44,31 +48,30 @@ sub prepare_serializer_for_format :PluginKeyword {
         }
     );
 
-    $self->add_hook( Dancer2::Core::Hook->new(
+    my %content_types = (
+        yaml => 'text/x-yaml',
+        yml  => 'text/x-yaml',
+        json => 'application/json',
+        dump => 'text/x-data-dumper',
+        ''   => 'text/html',
+    );
+
+    $self->app->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
         code => sub {
-            my $format = $self->request->params->{'format'};
-            $format  ||= $self->request->captures->{'format'} if $self->request->captures;
+            my $response = shift;
 
-            return delete $self->response->{serializer}
-                unless defined $format;
+            my $format = $self->request->params->{'format'}
+                         || eval { $self->request->captures->{'format'} };
+                         # || return $self->app->set_serializer_engine( undef );
 
-            my $serializer = $serializers->{$format}
-                or return $self->send_error("unsupported format requested: " . $format, 404);
+            my $content_type = lc $content_types{$format||''} or return;
 
-            $self->setting(serializer => $serializer);
+            $self->request->headers->header( 'Content-Type' => $content_type );
 
-            $self->set_response( Dancer2::Core::Response->new(
-                %{ $self->response },
-                serializer => $self->setting('serializer'),
-            ) );
-
-            $self->response->content_type(
-                $content_types->{$format} || $self->setting('content_type')
-            );
         }
     ) );
-};
+}
 
 sub resource :PluginKeyword {
     my ($self, $resource, %triggers) = @_;
