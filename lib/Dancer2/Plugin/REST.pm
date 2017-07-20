@@ -13,12 +13,14 @@ use Dancer2::Plugin;
 use Dancer2::Core::HTTP 0.203000;
 use List::Util qw/ pairmap pairgrep /;
 
+# TODO we repeat ourselves later on
 # [todo] - add XML support
 my $content_types = {
     json => 'application/json',
     yml  => 'text/x-yaml',
 };
 
+# TODO check if we use the handles
 has '+app' => (
     handles => [qw/
         add_hook
@@ -130,6 +132,8 @@ plugin_keywords pairmap {
 
 package 
     Dancer2::Serializer::Mutable::REST;
+
+# TODO write patch for D2:S:M to provide our own mapping
 
 use Moo;
 
