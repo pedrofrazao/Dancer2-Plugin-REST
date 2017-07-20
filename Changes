@@ -4,6 +4,7 @@ Revision history for Dancer2-Plugin-REST
   [ API CHANGES ]
 
   [ BUG FIXES ]
+  - Updated plugin for newest Dancer2. (GH#14)
 
   [ DOCUMENTATION ]
 
