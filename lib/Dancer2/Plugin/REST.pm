@@ -13,59 +13,41 @@ use Dancer2::Plugin;
 use Dancer2::Core::HTTP 0.203000;
 use List::Util qw/ pairmap pairgrep /;
 
-# TODO we repeat ourselves later on
-# [todo] - add XML support
-my $content_types = {
-    json => 'application/json',
+my %content_types = (
+    yaml => 'text/x-yaml',
     yml  => 'text/x-yaml',
-};
+    json => 'application/json',
+    dump => 'text/x-data-dumper',
+    ''   => 'text/html',
+);
 
 # TODO check if we use the handles
 has '+app' => (
     handles => [qw/
         add_hook
         add_route
-        setting
         response
         request
-        send_error
-        set_response
     /],
 );
 
-sub prepare_serializer_for_format :PluginKeyword { }
-
-sub BUILD {
+sub prepare_serializer_for_format :PluginKeyword { 
     my $self = shift;
 
     my $conf = $self->app->config;
-    $conf->{serializer} ||= 'Mutable::REST';
+    if( my $serializer = $conf->{serializer} ) {
+        warn "serializer '$serializer' specified in config file, overrode by Dancer2::Plugin::REST\n";
+    }
 
-    my $serializers = (
-        ($conf && exists $conf->{serializers})
-        ? $conf->{serializers}
-        : { 'json' => 'JSON',
-            'yml'  => 'YAML',
-            'dump' => 'Dumper',
-        }
-    );
+    $conf->{serializer} = 'Mutable::REST';
 
-    my %content_types = (
-        yaml => 'text/x-yaml',
-        yml  => 'text/x-yaml',
-        json => 'application/json',
-        dump => 'text/x-data-dumper',
-        ''   => 'text/html',
-    );
-
-    $self->app->add_hook( Dancer2::Core::Hook->new(
+    $self->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
         code => sub {
             my $response = shift;
 
             my $format = $self->request->params->{'format'}
                          || eval { $self->request->captures->{'format'} };
-                         # || return $self->app->set_serializer_engine( undef );
 
             my $content_type = lc $content_types{$format||''} or return;
 
@@ -134,11 +116,11 @@ package
     Dancer2::Serializer::Mutable::REST;
 
 # TODO write patch for D2:S:M to provide our own mapping
+# and then we'll be able to preserce the 'text/html'
 
 use Moo;
 
 extends 'Dancer2::Serializer::Mutable';
-
 
 around _get_content_type => sub {
     my( $orig, $self, $entity ) = @_;

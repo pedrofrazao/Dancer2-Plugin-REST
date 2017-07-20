@@ -1,15 +1,13 @@
 use strict;
 use warnings;
+
 use Module::Runtime qw(use_module);
 use Test::More import => ['!pass'];
 use Data::Dumper;
 use HTTP::Request::Common;
 use Plack::Test;
 
-plan skip_all => "JSON is needed for this test"
-    unless use_module('JSON');
-plan skip_all => "YAML is needed for this test"
-    unless use_module('YAML');
+use Test::Requires qw/ JSON YAML /;
 
 my $data = { foo => 42 };
 my $json = JSON::encode_json($data);
@@ -69,13 +67,17 @@ my @tests = (
 plan tests => scalar @tests;
 
 for my $test ( @tests ) {
-    subtest $test->{content_type} => sub {
-        my $response = $plack_test->request( GET $test->{path} );
+    subtest $test->{content_type} => \&testcase, $test;
+}
 
-        like($response->header('Content-Type'),
-            $test->{content_type},
-            "headers have content_type set to ".$test->{content_type});
+sub testcase {
+    my $test = shift;
 
-        is( $response->content, $test->{response}, "\$data has been encoded" );
-    };
+    my $response = $plack_test->request( GET $test->{path} );
+
+    like($response->header('Content-Type'),
+        $test->{content_type},
+        "headers have content_type set to ".$test->{content_type});
+
+    is( $response->content, $test->{response}, "\$data has been encoded" );
 }

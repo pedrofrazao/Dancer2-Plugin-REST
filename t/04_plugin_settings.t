@@ -19,6 +19,8 @@ my $yaml = YAML::Dump($data);
     use Dancer2;
     use Dancer2::Plugin::REST;
 
+    prepare_serializer_for_format;
+
     set environment => 'test';
 
     get '/' => sub { "root" };
