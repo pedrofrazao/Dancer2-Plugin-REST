@@ -13,62 +13,49 @@ use Dancer2::Plugin;
 use Dancer2::Core::HTTP 0.203000;
 use List::Util qw/ pairmap pairgrep /;
 
-# [todo] - add XML support
-my $content_types = {
-    json => 'application/json',
+my %content_types = (
+    yaml => 'text/x-yaml',
     yml  => 'text/x-yaml',
-};
+    json => 'application/json',
+    dump => 'text/x-data-dumper',
+    ''   => 'text/html',
+);
 
+# TODO check if we use the handles
 has '+app' => (
     handles => [qw/
         add_hook
         add_route
-        setting
         response
         request
-        send_error
-        set_response
     /],
 );
 
-sub prepare_serializer_for_format :PluginKeyword {
+sub prepare_serializer_for_format :PluginKeyword { 
     my $self = shift;
 
-    my $conf        = $self->config;
-    my $serializers = (
-        ($conf && exists $conf->{serializers})
-        ? $conf->{serializers}
-        : { 'json' => 'JSON',
-            'yml'  => 'YAML',
-            'dump' => 'Dumper',
-        }
-    );
+    my $conf = $self->app->config;
+    if( my $serializer = $conf->{serializer} ) {
+        warn "serializer '$serializer' specified in config file, overrode by Dancer2::Plugin::REST\n";
+    }
+
+    $conf->{serializer} = 'Mutable::REST';
 
     $self->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
         code => sub {
-            my $format = $self->request->params->{'format'};
-            $format  ||= $self->request->captures->{'format'} if $self->request->captures;
+            my $response = shift;
 
-            return delete $self->response->{serializer}
-                unless defined $format;
+            my $format = $self->request->params->{'format'}
+                         || eval { $self->request->captures->{'format'} };
 
-            my $serializer = $serializers->{$format}
-                or return $self->send_error("unsupported format requested: " . $format, 404);
+            my $content_type = lc $content_types{$format||''} or return;
 
-            $self->setting(serializer => $serializer);
+            $self->request->headers->header( 'Content-Type' => $content_type );
 
-            $self->set_response( Dancer2::Core::Response->new(
-                %{ $self->response },
-                serializer => $self->setting('serializer'),
-            ) );
-
-            $self->response->content_type(
-                $content_types->{$format} || $self->setting('content_type')
-            );
         }
     ) );
-};
+}
 
 sub resource :PluginKeyword {
     my ($self, $resource, %triggers) = @_;
@@ -125,12 +112,39 @@ plugin_keywords pairmap {
 
 1;
 
+package 
+    Dancer2::Serializer::Mutable::REST;
+
+# TODO write patch for D2:S:M to provide our own mapping
+# and then we'll be able to preserce the 'text/html'
+
+use Moo;
+
+extends 'Dancer2::Serializer::Mutable';
+
+around _get_content_type => sub {
+    my( $orig, $self, $entity ) = @_;
+
+    $self->has_request or return;
+
+    my $ct = $self->request->header( 'content_type' );
+
+    if( $ct eq 'text/html' or $ct eq '' ) {
+        $self->set_content_type( 'text/html' );
+        return;
+    }
+
+    $orig->($self,$entity);
+};
+
+1;
+
 __END__
 
 =pod
 
 
-=head1 SYNOPSYS
+=head1 SYNOPSIS
 
     package MyWebService;
 
@@ -273,7 +287,7 @@ Helpers are available for all HTTP codes as recognized by L<Dancer2::Core::HTTP>
     status_497    status_http_to_https
     status_499    status_client_closed_request
 
-    status_500    status_internal_server_error status_500    status_error
+    status_500    status_error, status_internal_server_error
     status_501    status_not_implemented
     status_502    status_bad_gateway
     status_503    status_service_unavailable
