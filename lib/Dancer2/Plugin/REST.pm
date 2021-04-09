@@ -1,7 +1,6 @@
 package Dancer2::Plugin::REST;
-our $AUTHORITY = 'cpan:SUKRIA';
 # ABSTRACT: A plugin for writing RESTful apps with Dancer2
-$Dancer2::Plugin::REST::VERSION = '1.02';
+
 use 5.12.0;  # for the sub attributes
 
 use strict;
@@ -41,6 +40,14 @@ sub prepare_serializer_for_format :PluginKeyword {
     }
 
     $conf->{serializer} = 'Mutable::REST';
+
+    ## laod content_types from dancer config
+    if( exists( $conf->{plugins}{REST}{content_types} ) ) {
+      while( my ( $k, $v ) = each( %{ $conf->{plugins}{REST}{content_types} } ) ) {
+	warn( qq{loading content_types "$v" from config\n} );
+	$content_types{ $k } = $v;
+      }
+    }
 
     $self->add_hook( Dancer2::Core::Hook->new(
         name => 'before',
@@ -142,15 +149,6 @@ __END__
 
 =pod
 
-=encoding UTF-8
-
-=head1 NAME
-
-Dancer2::Plugin::REST - A plugin for writing RESTful apps with Dancer2
-
-=head1 VERSION
-
-version 1.02
 
 =head1 SYNOPSIS
 
@@ -210,6 +208,21 @@ handlers, without explicitly handling the outgoing data format.
 
 Regexp routes will use the file-extension from captures->{'format'} to determine
 the serialization format.
+
+=head2 content_type
+
+it's possible to override the context_type definition for the format detected in the URI.
+
+For that use the Dancer2 configuration file with:
+
+    plugins:
+      REST:
+        content_types:
+          yaml: 'text/x-yaml'
+          yml: 'text/x-yaml'
+          json: 'application/json'
+          dump: 'text/x-data-dumper'
+          xml: 'text/xml'
 
 =head2 resource
 
@@ -332,6 +345,7 @@ be converted to C<{ error => $error }>.
     status_not_found("file $name not found");
     # ditto
 
+
 =head1 LICENCE
 
 This module is released under the same terms as Perl itself.
@@ -344,16 +358,5 @@ Cuny.
 =head1 SEE ALSO
 
 L<Dancer2> L<http://en.wikipedia.org/wiki/Representational_State_Transfer>
-
-=head1 AUTHOR
-
-Dancer Core Developers
-
-=head1 COPYRIGHT AND LICENSE
-
-This software is copyright (c) 2017, 2016, 2015, 2014, 2013, 2011, 2010 by Alexis Sukrieh.
-
-This is free software; you can redistribute it and/or modify it under
-the same terms as the Perl 5 programming language system itself.
 
 =cut
